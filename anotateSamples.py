@@ -10,7 +10,7 @@ pd.set_option("display.max_colwidth", None)
 # Prepare DataFrame
 df = pd.DataFrame()
 df["text"] = DATASET["text"]
-df["id"] = DATASET.index
+df["id"] = DATASET["id"]
 
 # Define labels
 labels = ["None", "Minimal", "Basic", "Good", "Excellent"]
@@ -53,13 +53,16 @@ def save_annotation(sample, path):
     existing.to_csv(path, index=False)
 
 
-current_sample = None  # Holds the last sample if input was invalid
+# Track remaining IDs
+remaining_ids = df["id"].tolist()
+current_sample = None
 
-while True:
+while remaining_ids:
     if current_sample is None:
-        sample = df.sample(n=1)
+        sample_id = np.random.choice(remaining_ids)
+        sample = df[df["id"] == sample_id].copy()
     else:
-        sample = current_sample  # Reuse previous sample
+        sample = current_sample  # reuse previous on invalid input
 
     text = sample["text"].values[0]
     print("\n" + "="*80)
@@ -74,7 +77,8 @@ while True:
 
     elif user_input == 's':
         print("Skipping this sample.")
-        current_sample = None  # move on
+        remaining_ids.remove(sample["id"].values[0])
+        current_sample = None
 
     elif user_input in ['0', '1', '2', '3', '4']:
         label_index = int(user_input)
@@ -82,8 +86,11 @@ while True:
         sample["label"] = label
         print(f"Label assigned: {label}")
         save_annotation(sample, "annotations.csv")
-        current_sample = None  # move on
+        remaining_ids.remove(sample["id"].values[0])
+        current_sample = None
 
     else:
         print("Invalid input. Please try again — same sample will be shown.")
-        current_sample = sample  # keep the same one next loop
+        current_sample = sample
+
+print("All samples processed! Exiting.")

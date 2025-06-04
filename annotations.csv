@@ -1,0 +1,4 @@
+id,text,label
+2,Here is the second sample.,"['Basic', 'Basic', 'Minimal', 'Basic', 'Basic', 'Basic', 'Basic', 'Minimal', 'Minimal', 'Minimal', 'Minimal', 'Basic']"
+1,This is the first sample.,"['Minimal', 'Minimal', 'Basic', 'Basic', 'Minimal', 'Minimal', 'Minimal', 'Good']"
+3,And this is the third sample.,"['Basic', 'Minimal', 'Basic', 'Basic', 'Basic', 'Basic', 'Basic', 'Basic', 'Basic', 'Minimal', 'Minimal', 'Minimal', 'Minimal', 'Minimal', 'Minimal']"
