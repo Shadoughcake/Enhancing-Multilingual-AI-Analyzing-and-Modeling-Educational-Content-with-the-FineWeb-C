@@ -6,9 +6,11 @@ import transformers
 import torch
 from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
 from transformers import BertTokenizer, BertModel, BertConfig
+from sklearn.model_selection import train_test_split
 from collections import Counter
 import ast
 import matplotlib.pyplot as plt
+import json
 
 
 
@@ -175,9 +177,23 @@ class BERTClass(torch.nn.Module):
 model = BERTClass()
 model.to(device)
 
+### LOSS, ACCURACY, OPTIMIZER
+
+# Convert one-hot encoded labels to class indices, based on class distributions
+class_indices = [label.index(1) for label in train_data['labels']]
+class_counts = torch.bincount(torch.tensor(class_indices))
+class_weights = 1.0 / class_counts.float()  # inverse frequency
+class_weights = class_weights / class_weights.sum()  # normalization
+
+# Define loss_fn with weights
+weighted_loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights.to(device))
+
 
 def loss_fn(outputs, targets):
-    return torch.nn.CrossEntropyLoss()(outputs, targets) # BCEWithLogistsLoss() for Softmax, CrossEntropyLoss() for OneHot
+    # return torch.nn.CrossEntropyLoss()(outputs, targets) # BCEWithLogistsLoss() for Softmax, CrossEntropyLoss() for OneHot
+
+    target_indices = torch.argmax(targets, dim=1)  # [batch_size]
+    return weighted_loss_fn(outputs, target_indices)
 
 def accuracyTest(outputs, targets):
     outputs = outputs.to(device, dtype=torch.int)
@@ -196,8 +212,9 @@ optimizer = torch.optim.Adam(params =  model.parameters(), lr=LEARNING_RATE)
 
 
 train_accuracies_pr_epoch = []
-val_accuracies_pr_epoch = []
+test_accuracies_pr_epoch = []
 train_losses = []
+confusion_matrix_pr_epoch = []
 
 def train(epoch):
     model.train()
@@ -209,7 +226,6 @@ def train(epoch):
         mask = data['mask'].to(device, dtype = torch.long)
         token_type_ids = data['token_type_ids'].to(device, dtype = torch.long)
         targets = data['targets'].to(device, dtype = torch.float)
-        targets_ce = torch.argmax(targets, dim=1).to(device, dtype=torch.long) # For Cross Entropy
 
         outputs = model(ids, mask, token_type_ids)
         probs = torch.softmax(outputs, dim=1) # SOFTMAX (dim=1) or SIGMOID (), depends on how we interpret the multiclass
@@ -218,14 +234,14 @@ def train(epoch):
         preds = torch.zeros_like(probs)
         preds.scatter_(1, max_indices.unsqueeze(1), 1)
 
-        print(preds)
-        print(targets)
+        # print(preds)
+        # print(targets)
         batch_train_accuracy = accuracyTest(preds, targets)
         train_accuracies.append(batch_train_accuracy)
 
-        print(batch_train_accuracy)
+        print(f"Batch {batch_idx} Train Accuracy:", batch_train_accuracy)
         
-        loss = loss_fn(outputs, targets_ce)
+        loss = loss_fn(outputs, targets)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -241,15 +257,11 @@ def train(epoch):
     train_losses.append(avg_train_loss)  # Save average loss for the epoch
     print(f'Epoch {epoch} Average Training Loss: {avg_train_loss}, Avrage Training Accuraccy: {np.mean(train_accuracies)}')
 
-val_accuracies = []
-val_f1_micro = []
-val_f1_macro = []
-test_accuracies_pr_epoch = []
 
 def validation(epoch):
     model.eval()
-    fin_targets = []
-    fin_outputs = []
+    confusion_matrix = np.zeros((len(unique_labels), len(unique_labels)))
+
     test_acc = []
     with torch.no_grad():
         for _, data in enumerate(testing_loader, 0):
@@ -265,11 +277,26 @@ def validation(epoch):
             preds = torch.zeros_like(probs)
             preds.scatter_(1, max_indices.unsqueeze(1), 1)
 
-            # print(preds)
-            # print(targets)
+            print(preds)
+            print(targets)
+
+            # Print confusion matrix for each sample
+            for i, (target, pred) in enumerate(zip(targets, preds)):
+                true_class = target.argmax().item()
+                predicted_class = pred.argmax().item()
+                
+                # Print per-sample prediction
+                print(f"Sample {i}: true class = {true_class}, predicted = {predicted_class}")
+                # Update confusion matrix
+                confusion_matrix[true_class, predicted_class] += 1
+            
+
             batch_test_acc = accuracyTest(preds, targets)
             test_acc.append(batch_test_acc)
-    
+            
+    # Print confusion matrix for the epoch        
+    print(confusion_matrix)
+    confusion_matrix_pr_epoch.append(confusion_matrix)  # Save confusion matrix for the epoch
     # Calculate metrics
     test_accuracies_pr_epoch.append(np.mean(test_acc)) # Save avrage accuracies for the epoch
     print(f'Epoch {epoch}, Avrage Test Accuraccy: {np.mean(test_acc)}')
@@ -282,7 +309,77 @@ for epoch in range(EPOCHS):
     validation(epoch)
 
 
-### Plots
+### Metric Functions
+def tp(multi_class_confusion_matrix):
+    return np.diag(multi_class_confusion_matrix)
+
+def fp(multi_class_confusion_matrix):
+    return np.sum(multi_class_confusion_matrix, axis=0) - tp(multi_class_confusion_matrix)
+
+def fn(multi_class_confusion_matrix):
+    return np.sum(multi_class_confusion_matrix, axis=1) - tp(multi_class_confusion_matrix)
+
+def tn(multi_class_confusion_matrix):
+    total = np.sum(multi_class_confusion_matrix)
+    return total - (tp(multi_class_confusion_matrix) + fp(multi_class_confusion_matrix) + fn(multi_class_confusion_matrix))
+
+def precision(tp,fp):
+    return tp / (tp + fp) if (tp + fp).all() else np.nan
+
+def recall(tp,fn):
+    return tp / (tp + fn) if (tp + fn).all() else np.nan
+
+def f1_score(precision, recall):
+    return 2 * (precision * recall) / (precision + recall) if (precision + recall).all() else np.nan
+
+def metrics(cm):
+    tp_values = tp(cm)
+    fp_values = fp(cm)
+    fn_values = fn(cm)
+    tn_values = tn(cm)
+
+    class_metrics = {}
+
+    for i in range(len(cm)):
+        precision_values = precision(tp_values[i], fp_values[i])
+        recall_values = recall(tp_values[i], fn_values[i])
+        f1_values = f1_score(precision_values, recall_values)
+
+        class_metrics[i] = {
+            "TP": tp_values[i],
+            "FP": fp_values[i],
+            "FN": fn_values[i],
+            "TN": tn_values[i],
+            "Precision": precision_values,
+            "Recall": recall_values,
+            "F1 Score": f1_values
+        }
+
+    return class_metrics
+
+
+### Plots & Metrics
+
+# Metrics
+
+all_epoch_metrics = []
+for epoch, cm in enumerate(confusion_matrix_pr_epoch):  # confusion_matrices = list of matrices per epoch
+    class_metrics = metrics(cm)
+    
+    # Attach epoch info
+    epoch_entry = {
+        "epoch": epoch,
+        "metrics": class_metrics  # class_metrics is already in {class_id: {...}} format
+    }
+    
+    all_epoch_metrics.append(epoch_entry)
+
+with open("epoch_metrics.json", "w") as f:
+    json.dump(all_epoch_metrics, f, indent=2)
+
+
+# Plots
+
 epochs = list(range(EPOCHS))
 
 plt.plot(epochs, train_accuracies_pr_epoch, label='Train Accuracy')
