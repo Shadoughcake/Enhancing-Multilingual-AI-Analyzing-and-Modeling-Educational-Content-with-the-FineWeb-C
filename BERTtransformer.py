@@ -332,7 +332,7 @@ def recall(tp,fn):
 def f1_score(precision, recall):
     return 2 * (precision * recall) / (precision + recall) if (precision + recall).all() else np.nan
 
-def metrics(cm):
+def cm_metrics(cm):
     tp_values = tp(cm)
     fp_values = fp(cm)
     fn_values = fn(cm)
@@ -364,7 +364,7 @@ def metrics(cm):
 
 all_epoch_metrics = []
 for epoch, cm in enumerate(confusion_matrix_pr_epoch):  # confusion_matrices = list of matrices per epoch
-    class_metrics = metrics(cm)
+    class_metrics = cm_metrics(cm)
     
     # Attach epoch info
     epoch_entry = {
