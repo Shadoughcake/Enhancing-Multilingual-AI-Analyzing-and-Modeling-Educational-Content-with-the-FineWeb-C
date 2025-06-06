@@ -20,9 +20,9 @@ MAX_LEN = 128
 TRAIN_SIZE = 0.05
 TRAIN_BATCH_SIZE = 4
 VALID_BATCH_SIZE = 4
-EPOCHS = 10
+EPOCHS = 2
 LEARNING_RATE = 1e-05
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 
 
 
@@ -48,7 +48,6 @@ def Soft_label(label_list):
 DATASET = pd.read_parquet("hf://datasets/data-is-better-together/fineweb-c/dan_Latn/train-00000-of-00001.parquet")
 PROBLEMATIC_CONTENT = False
 LABEL_FUNCTION = Most_common_label
-ex_Data_path = "fineweb2_data.csv"
 #########
 
 
@@ -56,13 +55,6 @@ df = pd.DataFrame()
 df["text"] = DATASET["text"]
 df["educational_value_labels"] = DATASET["educational_value_labels"]
 df["problematic_content_label_present"] = DATASET["problematic_content_label_present"]
-
-extra_df = pd.read_csv(ex_Data_path)
-extra_df = extra_df.rename(columns={"label": "educational_value_labels"})
-extra_df['educational_value_labels'] = extra_df['educational_value_labels'].apply(ast.literal_eval)
-extra_df['problematic_content_label_present'] = False
-
-df = pd.concat([df, extra_df], ignore_index=True)
 
 # REMOVE PROBLEMATIC LABELS FROM DATASET
 df = df[df['problematic_content_label_present'] == PROBLEMATIC_CONTENT]
@@ -165,7 +157,7 @@ testing_loader = DataLoader(testing_set, **test_params)
 class BERTClass(torch.nn.Module):
     def __init__(self):
         super(BERTClass, self).__init__()
-        self.l1 = transformers.BertModel.from_pretrained('bert-base-uncased')
+        self.l1 = transformers.BertModel.from_pretrained('bert-base-multilingual-cased')
         self.l2 = torch.nn.Dropout(0.3)
         #Change the secound val to the number of classes !!!!!!!!
         self.l3 = torch.nn.Linear(768, len(unique_labels))
