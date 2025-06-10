@@ -1,0 +1,28 @@
+1307 basic	6964 good
+1473 minimal	7205 good
+1694 basic	7973 basic
+1706 minimal	8428 good
+1954 basic	9320 good
+2226 basic	10034 minimal
+		10766 good
+2373 minimal	10847 good
+2566 basic	11016 basic
+3755 minimal	12050 minimal
+3919 minimal	12177 good - excellent
+4406 basic	
+4637 good
+5116 excellent
+5352 good
+6480 minimal
+6633 minimal
+	
+
+
+
+domains:
+
+www.teknologisk.dk
+denstoredanske.dk
+videnskab.dk
+historienet.dk
+www.leksikon.org
