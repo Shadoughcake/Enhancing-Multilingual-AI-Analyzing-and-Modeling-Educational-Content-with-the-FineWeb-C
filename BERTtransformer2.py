@@ -17,14 +17,21 @@ import json
 # Sections of config
 
 # Defining some key variables that will be used later on in the training
+############
 MAX_LEN = 128
 TRAIN_SIZE = 0.8
 TRAIN_BATCH_SIZE = 4
 VALID_BATCH_SIZE = 4
-EPOCHS = 50
-LEARNING_RATE = 1e-05
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-
+EPOCHS = 1 
+LEARNING_RATE = 1e-06
+DROPOUT = 0.3
+LOSS_FUNCTION = "l1"  # Options: "weighted", "l1", "l1+weighted"
+tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
+BERTmodel = BertModel.from_pretrained("Maltehb/danish-bert-botxo")
+graphname = "danishlr06epoch100.png"
+jsonName = "epoch_metrics.json"
+misclassifiedName = "misclassified_samples.csv"
+############
 
 
 # # Setting up the device for GPU usage
@@ -123,7 +130,8 @@ class MultiLabelDataset(Dataset):
             'ids': torch.tensor(ids, dtype=torch.long),
             'mask': torch.tensor(mask, dtype=torch.long),
             'token_type_ids': torch.tensor(token_type_ids, dtype=torch.long),
-            'targets': torch.tensor(self.targets[index], dtype=torch.float)
+            'targets': torch.tensor(self.targets[index], dtype=torch.float),
+            'index': index  # Add index for tracking misclassifications
         }
 
 
@@ -163,8 +171,8 @@ testing_loader = DataLoader(testing_set, **test_params)
 class BERTClass(torch.nn.Module):
     def __init__(self):
         super(BERTClass, self).__init__()
-        self.l1 = transformers.BertModel.from_pretrained('bert-base-uncased')
-        self.l2 = torch.nn.Dropout(0.3)
+        self.l1 = BERTmodel
+        self.l2 = torch.nn.Dropout(DROPOUT)
         #Change the secound val to the number of classes !!!!!!!!
         self.l3 = torch.nn.Linear(768, len(unique_labels))
 
@@ -179,21 +187,33 @@ model.to(device)
 
 ### LOSS, ACCURACY, OPTIMIZER
 
-# Convert one-hot encoded labels to class indices, based on class distributions
-class_indices = [label.index(1) for label in train_data['labels']]
-class_counts = torch.bincount(torch.tensor(class_indices))
-class_weights = 1.0 / class_counts.float()  # inverse frequency
-class_weights = class_weights / class_weights.sum()  # normalization
+def which_loss():
 
-# Define loss_fn with weights
-weighted_loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights.to(device))
+    if LOSS_FUNCTION == "weighted" or LOSS_FUNCTION == "l1+weighted":
+        # Convert one-hot encoded labels to class indices, based on class distributions
+        class_indices = [label.index(1) for label in train_data['labels']]
+        class_counts = torch.bincount(torch.tensor(class_indices))
+        class_weights = 1.0 / class_counts.float()  # inverse frequency
+        class_weights = class_weights / class_weights.sum()  # normalization
+        return torch.nn.CrossEntropyLoss(weight=class_weights.to(device))
+    else:
+        return torch.nn.CrossEntropyLoss()
 
+CE_loss_fn = which_loss() # Sets Loss function based on the LOSS_FUNCTION variable
 
-def loss_fn(outputs, targets):
+def loss_fn(outputs, targets, preds):
     # return torch.nn.CrossEntropyLoss()(outputs, targets) # BCEWithLogistsLoss() for Softmax, CrossEntropyLoss() for OneHot
-
     target_indices = torch.argmax(targets, dim=1)  # [batch_size]
-    return weighted_loss_fn(outputs, target_indices)
+
+    if LOSS_FUNCTION == "l1" or LOSS_FUNCTION == "l1+weighted":
+        # --- L1 Distance Weighting ---
+        l1_dist = torch.abs(preds - targets).sum(dim=1)  # Shape: [batch_size]
+        l1_weights = 1.0 + l1_dist  # Base weight=1, scaled by L1 distance
+
+        return (CE_loss_fn(outputs, target_indices) * l1_weights).mean()  # Mean L1 weighted loss
+    
+    elif LOSS_FUNCTION == "weighted":
+        return CE_loss_fn(outputs, target_indices)
 
 def accuracyTest(outputs, targets):
     outputs = outputs.to(device, dtype=torch.int)
@@ -207,19 +227,38 @@ def accuracyTest(outputs, targets):
 
     return accuracy
 
+def l1_score(outputs, targets):
+    # Ensure both tensors are on the same device
+    outputs = outputs.to(targets.device)
+
+    # Calculate absolute differences (no need to convert to int)
+    absolute_diffs = torch.abs(outputs - targets)
+
+    # Sum along the class dimension (dim=1) to get per-sample L1 scores
+    per_sample_l1 = torch.sum(absolute_diffs, dim=1)
+    
+    # Return mean L1 score across the batch
+    return per_sample_l1.mean().item()
+
 
 optimizer = torch.optim.Adam(params =  model.parameters(), lr=LEARNING_RATE)
 
 
 train_accuracies_pr_epoch = []
 test_accuracies_pr_epoch = []
+
+train_l1_scores_pr_epoch = []
+test_l1_scores_pr_epoch = []
+
 train_losses = []
 confusion_matrix_pr_epoch = []
+misclassified_samples = []
 
 def train(epoch):
     model.train()
     total_loss = 0  # Track total loss for the epoch
     train_accuracies = []
+    train_l1_scores = []
 
     for batch_idx,data in enumerate(training_loader, 0):
         ids = data['ids'].to(device, dtype = torch.long)
@@ -237,11 +276,15 @@ def train(epoch):
         # print(preds)
         # print(targets)
         batch_train_accuracy = accuracyTest(preds, targets)
+        batch_l1_score = l1_score(preds, targets)
+
         train_accuracies.append(batch_train_accuracy)
+        train_l1_scores.append(batch_l1_score)
 
         print(f"Batch {batch_idx} Train Accuracy:", batch_train_accuracy)
+        print(f"Batch {batch_idx} L1 Scores:", batch_l1_score)
         
-        loss = loss_fn(outputs, targets)
+        loss = loss_fn(outputs, targets, preds)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -253,6 +296,7 @@ def train(epoch):
 
     
     train_accuracies_pr_epoch.append(np.mean(train_accuracies)) # Save avrage accuracies for the epoch
+    train_l1_scores_pr_epoch.append(np.mean(train_l1_scores)) # Save avrage L1 scores for the epoch
     avg_train_loss = total_loss / len(training_loader)
     train_losses.append(avg_train_loss)  # Save average loss for the epoch
     print(f'Epoch {epoch} Average Training Loss: {avg_train_loss}, Avrage Training Accuraccy: {np.mean(train_accuracies)}')
@@ -263,8 +307,10 @@ def validation(epoch):
     confusion_matrix = np.zeros((len(unique_labels), len(unique_labels)))
 
     test_acc = []
+    test_l1 = []
     with torch.no_grad():
         for _, data in enumerate(testing_loader, 0):
+            batch_indices = data['index'].numpy()
             ids = data['ids'].to(device, dtype=torch.long)
             mask = data['mask'].to(device, dtype=torch.long)
             token_type_ids = data['token_type_ids'].to(device, dtype=torch.long)
@@ -289,16 +335,31 @@ def validation(epoch):
                 print(f"Sample {i}: true class = {true_class}, predicted = {predicted_class}")
                 # Update confusion matrix
                 confusion_matrix[true_class, predicted_class] += 1
+                if not true_class == predicted_class:
+                    orig_idx = batch_indices[i]
+                    misclassified_samples.append({
+                        'epoch': epoch,
+                        'index': orig_idx,
+                        'text': test_data.iloc[orig_idx]['text'],
+                        'true_label': unique_labels[true_class],
+                        'predicted_label': unique_labels[predicted_class]
+                    })
+
             
 
             batch_test_acc = accuracyTest(preds, targets)
+            batch_test_l1 = l1_score(preds, targets)
+            print(f"Batch Test Accuracy: {batch_test_acc}")
+            print(f"Batch Test L1 Score: {batch_test_l1}")
             test_acc.append(batch_test_acc)
+            test_l1.append(batch_test_l1)
             
     # Print confusion matrix for the epoch        
     print(confusion_matrix)
     confusion_matrix_pr_epoch.append(confusion_matrix)  # Save confusion matrix for the epoch
     # Calculate metrics
     test_accuracies_pr_epoch.append(np.mean(test_acc)) # Save avrage accuracies for the epoch
+    test_l1_scores_pr_epoch.append(np.mean(test_l1)) # Save avrage L1 scores for the epoch
     print(f'Epoch {epoch}, Avrage Test Accuraccy: {np.mean(test_acc)}')
 
 
@@ -309,77 +370,25 @@ for epoch in range(EPOCHS):
     validation(epoch)
 
 
-### Metric Functions
-def tp(multi_class_confusion_matrix):
-    return np.diag(multi_class_confusion_matrix)
+### Plots, Text & Metrics
 
-def fp(multi_class_confusion_matrix):
-    return np.sum(multi_class_confusion_matrix, axis=0) - tp(multi_class_confusion_matrix)
+## Confusion Matrix
+# Convert Confusion Matrix to a serializable format and add epoch info
+data_to_save = {
+    f"epoch_{i+1}": matrix.tolist() 
+    for i, matrix in enumerate(confusion_matrix_pr_epoch)
+}
 
-def fn(multi_class_confusion_matrix):
-    return np.sum(multi_class_confusion_matrix, axis=1) - tp(multi_class_confusion_matrix)
+# Save to JSON file
+with open(jsonName, 'w') as f:
+    json.dump(data_to_save, f, indent=4)
 
-def tn(multi_class_confusion_matrix):
-    total = np.sum(multi_class_confusion_matrix)
-    return total - (tp(multi_class_confusion_matrix) + fp(multi_class_confusion_matrix) + fn(multi_class_confusion_matrix))
-
-def precision(tp,fp):
-    return tp / (tp + fp) if (tp + fp).all() else np.nan
-
-def recall(tp,fn):
-    return tp / (tp + fn) if (tp + fn).all() else np.nan
-
-def f1_score(precision, recall):
-    return 2 * (precision * recall) / (precision + recall) if (precision + recall).all() else np.nan
-
-def cm_metrics(cm):
-    tp_values = tp(cm)
-    fp_values = fp(cm)
-    fn_values = fn(cm)
-    tn_values = tn(cm)
-
-    class_metrics = {}
-
-    for i in range(len(cm)):
-        precision_values = precision(tp_values[i], fp_values[i])
-        recall_values = recall(tp_values[i], fn_values[i])
-        f1_values = f1_score(precision_values, recall_values)
-
-        class_metrics[i] = {
-            "TP": tp_values[i],
-            "FP": fp_values[i],
-            "FN": fn_values[i],
-            "TN": tn_values[i],
-            "Precision": precision_values,
-            "Recall": recall_values,
-            "F1 Score": f1_values
-        }
-
-    return class_metrics
+## Save misclassified samples, CSV
+misclassified_df = pd.DataFrame(misclassified_samples)
+misclassified_df.to_csv(misclassifiedName, index=False)
 
 
-### Plots & Metrics
-
-# Metrics
-
-all_epoch_metrics = []
-for epoch, cm in enumerate(confusion_matrix_pr_epoch):  # confusion_matrices = list of matrices per epoch
-    class_metrics = cm_metrics(cm)
-    
-    # Attach epoch info
-    epoch_entry = {
-        "epoch": epoch,
-        "metrics": class_metrics  # class_metrics is already in {class_id: {...}} format
-    }
-    
-    all_epoch_metrics.append(epoch_entry)
-
-with open("epoch_metrics.json", "w") as f:
-    json.dump(all_epoch_metrics, f, indent=2)
-
-
-# Plots
-
+## Plots
 epochs = list(range(EPOCHS))
 
 plt.plot(epochs, train_accuracies_pr_epoch, label='Train Accuracy')
@@ -390,6 +399,19 @@ plt.title("Train vs Validation Accuracy")
 plt.legend()
 plt.grid(True)
 
-plt.savefig("learningcurve.png")
+plt.savefig("ACCURACY_"+graphname)
+
+plt.show()
+
+
+plt.plot(epochs, train_l1_scores_pr_epoch, label='Train L1 Scores')
+plt.plot(epochs, test_l1_scores_pr_epoch, label='Validation L1 Scores')
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy")
+plt.title("Train vs Validation L1 Scores")
+plt.legend()
+plt.grid(True)
+
+plt.savefig("L1_"+graphname)
 
 plt.show()
