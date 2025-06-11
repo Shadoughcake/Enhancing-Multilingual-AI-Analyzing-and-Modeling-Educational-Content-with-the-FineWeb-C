@@ -23,7 +23,7 @@ MAX_LEN = 128
 TRAIN_SIZE = 0.8
 TRAIN_BATCH_SIZE = 4
 VALID_BATCH_SIZE = 4
-EPOCHS = 1 
+EPOCHS = 80
 LEARNING_RATE = 1e-06
 DROPOUT = 0.3
 LOSS_FUNCTION = "l1"  # Options: "weighted", "l1", "l1+weighted", "None"
@@ -88,6 +88,16 @@ sort_order = {
     "Good": unique_labels.index("Good"),
     "Excellent": unique_labels.index("Excellent"),
 }
+
+# Convert Multi-Labels to Binary Labels
+if Binary_Classification:
+    unique_labels = ["None", "Educational"]
+    sort_order = {
+        "None": 0,
+        "Educational": 1
+    }
+    df["educational_value_labels"] = df["educational_value_labels"].apply(
+        lambda x: ["Educational"] if "None" not in x else ["None"])
 
 # Process Data labels
 df["Final_label"] = df["educational_value_labels"].apply(LABEL_FUNCTION)
@@ -193,6 +203,8 @@ model.to(device)
 ### LOSS, ACCURACY, OPTIMIZER
 
 def which_loss():
+    if Binary_Classification:
+        return torch.nn.BCEWithLogitsLoss()  # Use BCE for binary classification
 
     if LOSS_FUNCTION == "weighted" or LOSS_FUNCTION == "l1+weighted":
         # Convert one-hot encoded labels to class indices, based on class distributions
@@ -206,11 +218,14 @@ def which_loss():
     else:
         return torch.nn.CrossEntropyLoss()
 
-CE_loss_fn = which_loss() # Sets Loss function based on the LOSS_FUNCTION variable
+CE_loss_fn = which_loss() # Sets Loss function based on the LOSS_FUNCTION and Binary_Classification variable
 
 def loss_fn(outputs, targets, preds):
     # return torch.nn.CrossEntropyLoss()(outputs, targets) # BCEWithLogistsLoss() for Softmax, CrossEntropyLoss() for OneHot
     target_indices = torch.argmax(targets, dim=1)  # [batch_size]
+
+    if Binary_Classification:
+        return CE_loss_fn(outputs, targets)  # For binary classification, use BCEWithLogitsLoss
 
     if LOSS_FUNCTION == "l1" or LOSS_FUNCTION == "l1+weighted":
         # --- L1 Distance Weighting ---
@@ -278,14 +293,15 @@ def train(epoch):
 
         # print(preds)
         # print(targets)
+
         batch_train_accuracy = accuracyTest(preds, targets)
-        batch_l1_score = l1_score(preds, targets)
-
         train_accuracies.append(batch_train_accuracy)
-        train_l1_scores.append(batch_l1_score)
-
         print(f"Batch {batch_idx} Train Accuracy:", batch_train_accuracy)
-        print(f"Batch {batch_idx} L1 Scores:", batch_l1_score)
+
+        if not Binary_Classification:
+            batch_l1_score = l1_score(preds, targets)
+            train_l1_scores.append(batch_l1_score)
+            print(f"Batch {batch_idx} L1 Scores:", batch_l1_score)
         
         loss = loss_fn(outputs, targets, preds)
         optimizer.zero_grad()
@@ -299,7 +315,8 @@ def train(epoch):
 
     
     train_accuracies_pr_epoch.append(np.mean(train_accuracies)) # Save avrage accuracies for the epoch
-    train_l1_scores_pr_epoch.append(np.mean(train_l1_scores)) # Save avrage L1 scores for the epoch
+    if not Binary_Classification:
+        train_l1_scores_pr_epoch.append(np.mean(train_l1_scores)) # Save avrage L1 scores for the epoch
     avg_train_loss = total_loss / len(training_loader)
     train_losses.append(avg_train_loss)  # Save average loss for the epoch
     print(f'Epoch {epoch} Average Training Loss: {avg_train_loss}, Avrage Training Accuraccy: {np.mean(train_accuracies)}')
@@ -351,18 +368,20 @@ def validation(epoch):
             
 
             batch_test_acc = accuracyTest(preds, targets)
-            batch_test_l1 = l1_score(preds, targets)
-            print(f"Batch Test Accuracy: {batch_test_acc}")
-            print(f"Batch Test L1 Score: {batch_test_l1}")
             test_acc.append(batch_test_acc)
-            test_l1.append(batch_test_l1)
+            print(f"Batch Test Accuracy: {batch_test_acc}")
+            if not Binary_Classification:
+                batch_test_l1 = l1_score(preds, targets)
+                test_l1.append(batch_test_l1)
+                print(f"Batch Test L1 Score: {batch_test_l1}")
             
     # Print confusion matrix for the epoch        
     print(confusion_matrix)
     confusion_matrix_pr_epoch.append(confusion_matrix)  # Save confusion matrix for the epoch
     # Calculate metrics
     test_accuracies_pr_epoch.append(np.mean(test_acc)) # Save avrage accuracies for the epoch
-    test_l1_scores_pr_epoch.append(np.mean(test_l1)) # Save avrage L1 scores for the epoch
+    if not Binary_Classification:
+        test_l1_scores_pr_epoch.append(np.mean(test_l1)) # Save avrage L1 scores for the epoch
     print(f'Epoch {epoch}, Avrage Test Accuraccy: {np.mean(test_acc)}')
 
 
@@ -408,14 +427,15 @@ plt.savefig("ACCURACY_"+graphname)
 plt.show()
 
 # L1 Scores Plot
-plt.plot(epochs, train_l1_scores_pr_epoch, label='Train L1 Scores')
-plt.plot(epochs, test_l1_scores_pr_epoch, label='Validation L1 Scores')
-plt.xlabel("Epoch")
-plt.ylabel("Accuracy")
-plt.title("Train vs Validation L1 Scores")
-plt.legend()
-plt.grid(True)
+if not Binary_Classification:
+    plt.plot(epochs, train_l1_scores_pr_epoch, label='Train L1 Scores')
+    plt.plot(epochs, test_l1_scores_pr_epoch, label='Validation L1 Scores')
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title("Train vs Validation L1 Scores")
+    plt.legend()
+    plt.grid(True)
 
-plt.savefig("L1_"+graphname)
+    plt.savefig("L1_"+graphname)
 
-plt.show()
+    plt.show()
