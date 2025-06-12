@@ -419,6 +419,7 @@ plt.plot(epochs, test_accuracies_pr_epoch, label='Validation Accuracy')
 plt.xlabel("Epoch")
 plt.ylabel("Accuracy")
 plt.title("Train vs Validation Accuracy")
+plt.ylim(1, 0) 
 plt.legend()
 plt.grid(True)
 
