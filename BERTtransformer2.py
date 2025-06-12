@@ -58,7 +58,10 @@ def Soft_label(label_list):
     
 
 #########
-DATASET = pd.read_parquet("hf://datasets/data-is-better-together/fineweb-c/dan_Latn/train-00000-of-00001.parquet")
+# DATASET = pd.read_parquet("hf://datasets/data-is-better-together/fineweb-c/dan_Latn/train-00000-of-00001.parquet")
+DATASET = pd.read_csv("fineweb-c_relabled.csv")
+DATASET["educational_value_labels"] = DATASET["educational_value_labels"].apply(ast.literal_eval)
+
 PROBLEMATIC_CONTENT = False
 LABEL_FUNCTION = Most_common_label
 ex_Data_path = "fineweb2_data.csv"
