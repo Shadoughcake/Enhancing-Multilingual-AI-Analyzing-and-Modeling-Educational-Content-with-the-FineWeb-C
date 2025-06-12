@@ -24,20 +24,21 @@ TRAIN_SIZE = 0.8
 TRAIN_BATCH_SIZE = 4
 VALID_BATCH_SIZE = 4
 EPOCHS = 80
-LEARNING_RATE = 1e-06
+LEARNING_RATE = 1e-05
 DROPOUT = 0.3
-LOSS_FUNCTION = "l1"  # Options: "weighted", "l1", "l1+weighted", "None"
+LOSS_FUNCTION = "weighted"  # Options: "weighted", "l1", "l1+weighted", "None"
 
 ### Tokenizer and Model
 tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
 BERTmodel = BertModel.from_pretrained("Maltehb/danish-bert-botxo")
 
 ### Output file names
-graphname = "danishlr06epoch100.png"
-jsonName = "epoch_metrics.json"
-misclassifiedName = "misclassified_samples.csv"
+graphname = "DK_lr05.png"
+jsonName = "CMS_DK_lr05.json"
+misclassifiedName = "MC_DK_lr5.csv"
 ############
 
+print("Running:", graphname)
 
 # # Setting up the device for GPU usage
 from torch import cuda
@@ -85,11 +86,11 @@ df = df[df['problematic_content_label_present'] == PROBLEMATIC_CONTENT]
 
 unique_labels = df["educational_value_labels"].explode().unique().tolist()
 sort_order = {
-    "None": unique_labels.index("None"),
-    "Minimal": unique_labels.index("Minimal"),
-    "Basic": unique_labels.index("Basic"),
-    "Good": unique_labels.index("Good"),
-    "Excellent": unique_labels.index("Excellent"),
+    "None": 0,
+    "Minimal": 1,
+    "Basic": 2,
+    "Good": 3,
+    "Excellent": 4
 }
 
 # Convert Multi-Labels to Binary Labels
@@ -240,7 +241,7 @@ def loss_fn(outputs, targets, preds):
         return (CE_loss_fn(outputs, target_indices) * l1_weights).mean()  # Mean L1 weighted loss
     
     elif LOSS_FUNCTION == "weighted" or LOSS_FUNCTION == "None":
-        return CE_loss_fn(outputs, target_indices)
+        return CE_loss_fn(outputs, target_indices).mean()  
 
 def accuracyTest(outputs, targets):
     outputs = outputs.to(device, dtype=torch.int)
@@ -422,7 +423,7 @@ plt.plot(epochs, test_accuracies_pr_epoch, label='Validation Accuracy')
 plt.xlabel("Epoch")
 plt.ylabel("Accuracy")
 plt.title("Train vs Validation Accuracy")
-plt.ylim(1, 0) 
+plt.ylim(0, 1) 
 plt.legend()
 plt.grid(True)
 
@@ -435,7 +436,7 @@ if not Binary_Classification:
     plt.plot(epochs, train_l1_scores_pr_epoch, label='Train L1 Scores')
     plt.plot(epochs, test_l1_scores_pr_epoch, label='Validation L1 Scores')
     plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
+    plt.ylabel("L1")
     plt.title("Train vs Validation L1 Scores")
     plt.legend()
     plt.grid(True)
