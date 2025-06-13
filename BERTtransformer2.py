@@ -157,15 +157,26 @@ class MultiLabelDataset(Dataset):
 # Creating the dataset and dataloader for the neural network
 
 train_size = TRAIN_SIZE
-train_data=new_df.sample(frac=train_size,random_state=200)
-test_data=new_df.drop(train_data.index).reset_index(drop=True)
-train_data = train_data.reset_index(drop=True)
 
+# Convert one-hot vectors to class indices
+label_indices = new_df["labels"].apply(lambda x: np.argmax(x)).tolist()
+
+train_data, test_data = train_test_split(
+    new_df, 
+    test_size=1 - TRAIN_SIZE, 
+    stratify=label_indices, 
+    random_state=200
+)
+
+train_data = train_data.reset_index(drop=True)
+test_data = test_data.reset_index(drop=True)
 
 print("FULL Dataset: {}".format(new_df.shape))
 print("TRAIN Dataset: {}".format(train_data.shape))
 print("TEST Dataset: {}".format(test_data.shape))
 
+print(test_data["labels"].value_counts())
+print(train_data["labels"].value_counts())
 training_set = MultiLabelDataset(train_data, tokenizer, MAX_LEN)
 testing_set = MultiLabelDataset(test_data, tokenizer, MAX_LEN)
 
