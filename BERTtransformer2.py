@@ -19,23 +19,23 @@ import json
 # Defining some key variables that will be used later on in the training
 ############
 Binary_Classification = True  # Set to True for binary classification, False for multiclass
-MAX_LEN = 128
+MAX_LEN = 128*4
 TRAIN_SIZE = 0.8
 TRAIN_BATCH_SIZE = 4
 VALID_BATCH_SIZE = 4
 EPOCHS = 100
 LEARNING_RATE = 1e-06
 DROPOUT = 0.5
-LOSS_FUNCTION = "weighted"  # Options: "weighted", "l1", "l1+weighted", "None"
+LOSS_FUNCTION = "l1"  # Options: "weighted", "l1", "l1+weighted", "None"
 
 ### Tokenizer and Model
 tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
 BERTmodel = BertModel.from_pretrained("Maltehb/danish-bert-botxo")
 
 ### Output file names
-graphname = "DK_lr05.png"
-jsonName = "CMS_DK_lr05.json"
-misclassifiedName = "MC_DK_lr5.csv"
+graphname = "DK_BinaryL1.png"
+jsonName = "CMS_BinaryL1.json"
+misclassifiedName = "MC_BinaryL1.csv"
 ############
 
 print("Running:", graphname)
@@ -96,23 +96,30 @@ sort_order = {
 # Process Data labels
 df["Final_label"] = df["educational_value_labels"].apply(LABEL_FUNCTION)
 
-new_df = pd.DataFrame()
-new_df["text"] = df["text"]
-new_df["labels"] = df["Final_label"]
-
 # Convert Multi-Labels to Binary Labels
 if Binary_Classification:
-    new_df["labels"] =new_df['labels'].apply(lambda x: [unique_labels[i] for i in range(len(unique_labels)) if x[i] == 1])
     unique_labels = ["None", "Educational"]
     sort_order = {
         "None": 0,
         "Educational": 1
     }
-    new_df["labels"] = new_df["labels"].apply(
+    df["educational_value_labels"] = df["educational_value_labels"].apply(
         lambda x: ["Educational"] if "None" not in x else ["None"])
+    
+    df["Final_label"] = df["Final_label"].apply(
+        lambda x: [0,1] if "Educational" in x else [1,0]
+    )
+
+# Process Data labels
+df["Final_label"] = df["educational_value_labels"].apply(LABEL_FUNCTION)
+
+# Display sample rows
+#df.sample(5)
 
 
-
+new_df = pd.DataFrame()
+new_df["text"] = df["text"]
+new_df["labels"] = df["Final_label"]
 
 
 class MultiLabelDataset(Dataset):
@@ -171,12 +178,11 @@ train_data, test_data = train_test_split(
 train_data = train_data.reset_index(drop=True)
 test_data = test_data.reset_index(drop=True)
 
+
 print("FULL Dataset: {}".format(new_df.shape))
 print("TRAIN Dataset: {}".format(train_data.shape))
 print("TEST Dataset: {}".format(test_data.shape))
 
-print(test_data["labels"].value_counts())
-print(train_data["labels"].value_counts())
 training_set = MultiLabelDataset(train_data, tokenizer, MAX_LEN)
 testing_set = MultiLabelDataset(test_data, tokenizer, MAX_LEN)
 
@@ -440,7 +446,6 @@ plt.grid(True)
 
 plt.savefig("ACCURACY_"+graphname)
 
-plt.show()
 
 # L1 Scores Plot
 if not Binary_Classification:
@@ -454,4 +459,9 @@ if not Binary_Classification:
 
     plt.savefig("L1_"+graphname)
 
-    plt.show()
+
+
+
+
+
+
