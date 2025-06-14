@@ -18,14 +18,14 @@ import json
 
 # Defining some key variables that will be used later on in the training
 ############
-Binary_Classification = False  # Set to True for binary classification, False for multiclass
+Binary_Classification = True  # Set to True for binary classification, False for multiclass
 MAX_LEN = 128
 TRAIN_SIZE = 0.8
 TRAIN_BATCH_SIZE = 4
 VALID_BATCH_SIZE = 4
-EPOCHS = 80
-LEARNING_RATE = 1e-05
-DROPOUT = 0.3
+EPOCHS = 100
+LEARNING_RATE = 1e-06
+DROPOUT = 0.5
 LOSS_FUNCTION = "weighted"  # Options: "weighted", "l1", "l1+weighted", "None"
 
 ### Tokenizer and Model
@@ -93,26 +93,26 @@ sort_order = {
     "Excellent": 4
 }
 
+# Process Data labels
+df["Final_label"] = df["educational_value_labels"].apply(LABEL_FUNCTION)
+
+new_df = pd.DataFrame()
+new_df["text"] = df["text"]
+new_df["labels"] = df["Final_label"]
+
 # Convert Multi-Labels to Binary Labels
 if Binary_Classification:
+    new_df["labels"] =new_df['labels'].apply(lambda x: [unique_labels[i] for i in range(len(unique_labels)) if x[i] == 1])
     unique_labels = ["None", "Educational"]
     sort_order = {
         "None": 0,
         "Educational": 1
     }
-    df["educational_value_labels"] = df["educational_value_labels"].apply(
+    new_df["labels"] = new_df["labels"].apply(
         lambda x: ["Educational"] if "None" not in x else ["None"])
 
-# Process Data labels
-df["Final_label"] = df["educational_value_labels"].apply(LABEL_FUNCTION)
-
-# Display sample rows
-#df.sample(5)
 
 
-new_df = pd.DataFrame()
-new_df["text"] = df["text"]
-new_df["labels"] = df["Final_label"]
 
 
 class MultiLabelDataset(Dataset):
