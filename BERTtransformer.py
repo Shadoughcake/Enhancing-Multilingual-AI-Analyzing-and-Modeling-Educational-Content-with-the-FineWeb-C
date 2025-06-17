@@ -5,7 +5,7 @@ from sklearn import metrics
 import transformers
 import torch
 from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
-from transformers import BertTokenizer, BertModel, BertConfig
+from transformers import BertTokenizer, BertModel, BertConfig, set_seed
 from sklearn.model_selection import train_test_split
 from collections import Counter
 import ast
@@ -18,7 +18,7 @@ import json
 
 # Defining some key variables that will be used later on in the training
 ############
-Binary_Classification = True  # Set to True for binary classification, False for multiclass
+Binary_Classification = False  # Set to True for binary classification, False for multiclass
 MAX_LEN = 128*4
 TRAIN_SIZE = 0.8
 TRAIN_BATCH_SIZE = 4
@@ -27,6 +27,12 @@ EPOCHS = 100
 LEARNING_RATE = 1e-06
 DROPOUT = 0.5
 LOSS_FUNCTION = "l1"  # Options: "weighted", "l1", "l1+weighted", "None"
+
+SEED = 200
+
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+set_seed(SEED) 
 
 ### Tokenizer and Model
 tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
@@ -43,6 +49,10 @@ print("Running:", graphname)
 # # Setting up the device for GPU usage
 from torch import cuda
 device = 'cuda' if cuda.is_available() else 'cpu'
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(SEED)
+
+
 
 
 def Most_common_label(label_list):
@@ -172,7 +182,7 @@ train_data, test_data = train_test_split(
     new_df, 
     test_size=1 - TRAIN_SIZE, 
     stratify=label_indices, 
-    random_state=200
+    random_state=SEED
 )
 
 train_data = train_data.reset_index(drop=True)
