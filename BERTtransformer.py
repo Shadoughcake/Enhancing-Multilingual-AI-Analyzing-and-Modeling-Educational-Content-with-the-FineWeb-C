@@ -12,12 +12,11 @@ import ast
 import matplotlib.pyplot as plt
 import json
 
-
-
 # Sections of config
 
 # Defining some key variables that will be used later on in the training
 ############
+
 Binary_Classification = False  # Set to True for binary classification, False for multiclass
 MAX_LEN = 128*4
 TRAIN_SIZE = 0.8
@@ -39,9 +38,11 @@ tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
 BERTmodel = BertModel.from_pretrained("Maltehb/danish-bert-botxo")
 
 ### Output file names
-graphname = "DK_BinaryL1.png"
-jsonName = "CMS_BinaryL1.json"
-misclassifiedName = "MC_BinaryL1.csv"
+param_name = "L1" # Options: L1, L1Weighted, Weighted
+
+graphname = "DK_final"+param_name+".png"
+jsonName = "CMS_final"+param_name+".json"
+misclassifiedName = "MC_final"+param_name+".csv"
 ############
 
 print("Running:", graphname)
