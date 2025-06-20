@@ -18,7 +18,6 @@ seed_list = [30,31,32,33,34,35,36,37,38,39]
 
 for seed in seed_list:
     # Sections of config
-
     # Defining some key variables that will be used later on in the training
     ############
     Binary_Classification = False  # Set to True for binary classification, False for multiclass
@@ -32,33 +31,35 @@ for seed in seed_list:
     LOSS_FUNCTION = "l1"  # Options: "weighted", "l1", "l1+weighted", "None"
 
     SEED = seed
-
     np.random.seed(SEED)
     torch.manual_seed(SEED)
     set_seed(SEED) 
 
     ### Tokenizer and Model
-    tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
-    BERTmodel = BertModel.from_pretrained("Maltehb/danish-bert-botxo")
+    tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo") # Change Tokenizer
+    BERTmodel = BertModel.from_pretrained("Maltehb/danish-bert-botxo") # Change Model
+    ############
+
 
     ### Output file names
     graphname = param_name+".png"
     jsonName = "CM_"+param_name+".json"
     misclassifiedName = "MC_"+param_name+"MBinaryL1.csv"
-    ############
 
     print("Running:", graphname)
 
-    # # Setting up the device for GPU usage
+    # Setting up the device for GPU usage
     from torch import cuda
     device = 'cuda' if cuda.is_available() else 'cpu'
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(SEED)
 
 
-
-
     def Most_common_label(label_list):
+        """
+        Returns the most common label from a list of labels.
+        If there are multiple labels with the same frequency, it returns the first one in the order of unique_labels.
+        """
         label = Counter(label_list).most_common(1)[0][0]
         inx = sort_order[label]  # Most frequent label
         L = [0 for i in range(len(unique_labels))]
@@ -67,18 +68,23 @@ for seed in seed_list:
 
 
     def Soft_label(label_list):
+        """
+        Returns a soft label based on the frequency of each label in the list.
+        The output is a normalized vector where each index corresponds to a label in unique_labels.
+        """
         numeric_annotations = [sort_order[label] for label in label_list]
         return np.bincount(numeric_annotations, minlength=len(unique_labels)) / len(label_list)
         
 
-    #########
+    ######### Configurate Dataset path and Label Function here.
+    
     # DATASET = pd.read_parquet("hf://datasets/data-is-better-together/fineweb-c/dan_Latn/train-00000-of-00001.parquet")
     DATASET = pd.read_csv("fineweb-c_relabled.csv")
     DATASET["educational_value_labels"] = DATASET["educational_value_labels"].apply(ast.literal_eval)
 
     PROBLEMATIC_CONTENT = False
-    LABEL_FUNCTION = Most_common_label
-    ex_Data_path = "fineweb2_data.csv"
+    LABEL_FUNCTION = Most_common_label # Change to Soft_label or Most_common_label
+    ex_Data_path = "fineweb2_data.csv" # Change to the path of the extra data file if needed
     #########
 
 
@@ -94,7 +100,7 @@ for seed in seed_list:
 
     df = pd.concat([df, extra_df], ignore_index=True)
 
-    # REMOVE PROBLEMATIC LABELS FROM DATASET
+    # Removes problematic content if PROBLEMATIC_CONTENT is False
     df = df[df['problematic_content_label_present'] == PROBLEMATIC_CONTENT]
 
     unique_labels = df["educational_value_labels"].explode().unique().tolist()
@@ -128,7 +134,6 @@ for seed in seed_list:
 
     # Display sample rows
     #df.sample(5)
-
 
     new_df = pd.DataFrame()
     new_df["text"] = df["text"]
