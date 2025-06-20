@@ -12,7 +12,7 @@ import ast
 import matplotlib.pyplot as plt
 import json
 
-param_name = "dk_weighted"
+param_name = "Multi_weighted"
 loop_filename = param_name+"accuracies.csv"
 seed_list = [30,31,32,33,34,35,36,37,38,39]
 
@@ -28,7 +28,7 @@ for seed in seed_list:
     EPOCHS = 100
     LEARNING_RATE = 1e-06
     DROPOUT = 0.5
-    LOSS_FUNCTION = "l1"  # Options: "weighted", "l1", "l1+weighted", "None"
+    LOSS_FUNCTION = "weighted"  # Options: "weighted", "l1", "l1+weighted", "None"
 
     SEED = seed
     np.random.seed(SEED)
