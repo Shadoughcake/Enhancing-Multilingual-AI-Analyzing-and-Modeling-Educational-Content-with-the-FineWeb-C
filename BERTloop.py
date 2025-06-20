@@ -229,10 +229,12 @@ for seed in seed_list:
             self.l2 = torch.nn.Dropout(DROPOUT)
             #Change the secound val to the number of classes !!!!!!!!
             self.l3 = torch.nn.Linear(768, len(unique_labels))
+            self.clas
 
         def forward(self, ids, mask, token_type_ids):
             _, output_1= self.l1(ids, attention_mask = mask, token_type_ids = token_type_ids, return_dict=False)
             output_2 = self.l2(output_1)
+            
             output = self.l3(output_2)
             return output
 
