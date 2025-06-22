@@ -1,0 +1,8 @@
+numpy==1.25.2
+pandas==2.2.2
+scikit-learn==1.6.1
+transformers==4.51.1
+torch==2.2.2
+matplotlib==3.6.3
+datasets
+pyarrow
