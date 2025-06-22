@@ -102,7 +102,7 @@ For multiclass prediction we used the loss function CrossEntropyLoss and for bin
 
 
 ## Results
-Accuracy and loss function graphs are generated when you run `BERTtransformer.py` as well as `MC.csv` which is a csv containing missclassied samples per epoch, and `CMS.json` file which can be converted into a confusion matrix to further interperet the results.
+Accuracy and loss function graphs are generated when you run `BERTtransformer.py` as well as `MC.csv` which is a csv containing missclassied samples per epoch, and `CMS.json` file which can be converted into a confusion matrix using `Results/RESULTS.ipynb` to further interperet the results.
 
 Results from using L1 loss function.
 
