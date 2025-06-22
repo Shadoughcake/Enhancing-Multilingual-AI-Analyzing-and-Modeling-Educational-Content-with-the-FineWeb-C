@@ -33,9 +33,14 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 set_seed(SEED) 
 
+
+# Use 0 for danish, 1 for english, 2 for multilingual
+Pretrained_models = ["Maltehb/danish-bert-botxo","bert-base-uncased","bert-base-multilingual-cased"]
+Pretrained_model = Pretrained_models[0]
+
 ### Tokenizer and Model
-tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
-BERTmodel = BertModel.from_pretrained("Maltehb/danish-bert-botxo")
+tokenizer = BertTokenizer.from_pretrained(Pretrained_model)
+BERTmodel = BertModel.from_pretrained(Pretrained_model)
 
 ### Output file names
 param_name = "L1" # Options: L1, L1Weighted, Weighted
@@ -71,12 +76,12 @@ def Soft_label(label_list):
 
 #########
 # DATASET = pd.read_parquet("hf://datasets/data-is-better-together/fineweb-c/dan_Latn/train-00000-of-00001.parquet")
-DATASET = pd.read_csv("fineweb-c_relabled.csv")
+DATASET = pd.read_csv("Enhancing-Multilingual-AI-Analyzing-and-Modeling-Educational-Content-with-the-FineWeb-C/annotations Data/fineweb-c_relabled.csv")
 DATASET["educational_value_labels"] = DATASET["educational_value_labels"].apply(ast.literal_eval)
 
 PROBLEMATIC_CONTENT = False
 LABEL_FUNCTION = Most_common_label
-ex_Data_path = "fineweb2_data.csv"
+ex_Data_path = "Enhancing-Multilingual-AI-Analyzing-and-Modeling-Educational-Content-with-the-FineWeb-C/annotations Data/fineweb2_data.csv"
 #########
 
 

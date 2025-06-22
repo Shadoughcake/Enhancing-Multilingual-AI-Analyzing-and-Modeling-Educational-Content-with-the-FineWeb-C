@@ -15,6 +15,9 @@ import json
 param_name = "Multi_weighted"
 loop_filename = param_name+"accuracies.csv"
 seed_list = [30,31,32,33,34,35,36,37,38,39]
+# Use 0 for danish, 1 for english, 2 for multilingual
+Pretrained_models = ["Maltehb/danish-bert-botxo","bert-base-uncased","bert-base-multilingual-cased"]
+Pretrained_model = Pretrained_models[0]
 
 for seed in seed_list:
     # Sections of config
@@ -36,8 +39,8 @@ for seed in seed_list:
     set_seed(SEED) 
 
     ### Tokenizer and Model
-    tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo") # Change Tokenizer
-    BERTmodel = BertModel.from_pretrained("Maltehb/danish-bert-botxo") # Change Model
+    tokenizer = BertTokenizer.from_pretrained(Pretrained_model) # Change Tokenizer
+    BERTmodel = BertModel.from_pretrained(Pretrained_model) # Change Model
     ############
 
 
@@ -79,12 +82,12 @@ for seed in seed_list:
     ######### Configurate Dataset path and Label Function here.
     
     # DATASET = pd.read_parquet("hf://datasets/data-is-better-together/fineweb-c/dan_Latn/train-00000-of-00001.parquet")
-    DATASET = pd.read_csv("fineweb-c_relabled.csv")
+    DATASET = pd.read_csv("Enhancing-Multilingual-AI-Analyzing-and-Modeling-Educational-Content-with-the-FineWeb-C/annotations Data/fineweb-c_relabled.csv")
     DATASET["educational_value_labels"] = DATASET["educational_value_labels"].apply(ast.literal_eval)
 
     PROBLEMATIC_CONTENT = False
     LABEL_FUNCTION = Most_common_label # Change to Soft_label or Most_common_label
-    ex_Data_path = "fineweb2_data.csv" # Change to the path of the extra data file if needed
+    ex_Data_path = "Enhancing-Multilingual-AI-Analyzing-and-Modeling-Educational-Content-with-the-FineWeb-C/annotations Data/fineweb2_data.csv" # Change to the path of the extra data file if needed
     #########
 
 
