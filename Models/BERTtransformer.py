@@ -62,6 +62,15 @@ if torch.cuda.is_available():
 
 
 def Most_common_label(label_list):
+    """
+    Returns a one-hot encoded vector for the most common label in the list.
+    
+    Args:
+        label_list (list): List of labels.
+        
+    Returns:
+        list: One-hot vector indicating the most frequent label.
+    """
     label = Counter(label_list).most_common(1)[0][0]
     inx = sort_order[label]  # Most frequent label
     L = [0 for i in range(len(unique_labels))]
@@ -70,6 +79,15 @@ def Most_common_label(label_list):
 
 
 def Soft_label(label_list):
+    """
+    Returns a soft label distribution based on frequency of labels in the list.
+    
+    Args:
+        label_list (list): List of labels.
+        
+    Returns:
+        np.ndarray: Probability distribution over classes.
+    """
     numeric_annotations = [sort_order[label] for label in label_list]
     return np.bincount(numeric_annotations, minlength=len(unique_labels)) / len(label_list)
     
@@ -139,6 +157,14 @@ new_df["labels"] = df["Final_label"]
 
 
 class MultiLabelDataset(Dataset):
+    """
+    PyTorch Dataset for multi-label text classification.
+    
+    Args:
+        dataframe (pd.DataFrame): Dataframe containing text and labels.
+        tokenizer (transformers.Tokenizer): Tokenizer to process text.
+        max_len (int): Maximum token length for sequences.
+    """
 
     def __init__(self, dataframe, tokenizer, max_len):
         self.tokenizer = tokenizer
@@ -148,9 +174,19 @@ class MultiLabelDataset(Dataset):
         self.max_len = max_len
 
     def __len__(self):
+        """Returns the number of samples."""
         return len(self.text)
 
     def __getitem__(self, index):
+        """
+        Returns tokenized inputs and labels for the sample at the given index.
+        
+        Args:
+            index (int): Index of the sample.
+        
+        Returns:
+            dict: Dictionary containing input ids, attention mask, token type ids, targets, and index.
+        """
         text = str(self.text[index])
         text = " ".join(text.split())
 
@@ -221,6 +257,9 @@ testing_loader = DataLoader(testing_set, **test_params)
 # Creating the customized model, by adding a drop out and a dense layer on top of distil bert to get the final output for the model.
 
 class BERTClass(torch.nn.Module):
+    """
+    Custom BERT-based classifier with dropout and linear output layer.
+    """
     def __init__(self):
         super(BERTClass, self).__init__()
         self.l1 = BERTmodel
@@ -229,6 +268,17 @@ class BERTClass(torch.nn.Module):
         self.l3 = torch.nn.Linear(768, len(unique_labels))
 
     def forward(self, ids, mask, token_type_ids):
+        """
+        Forward pass through the model.
+        
+        Args:
+            ids (torch.Tensor): Token IDs.
+            mask (torch.Tensor): Attention mask.
+            token_type_ids (torch.Tensor): Token type IDs.
+        
+        Returns:
+            torch.Tensor: Output logits.
+        """
         _, output_1= self.l1(ids, attention_mask = mask, token_type_ids = token_type_ids, return_dict=False)
         output_2 = self.l2(output_1)
         output = self.l3(output_2)
@@ -240,6 +290,12 @@ model.to(device)
 ### LOSS, ACCURACY, OPTIMIZER
 
 def which_loss():
+    """
+    Returns the appropriate loss function based on configuration.
+    
+    Returns:
+        torch.nn.Module: Loss function.
+    """
     if Binary_Classification:
         return torch.nn.BCEWithLogitsLoss()  # Use BCE for binary classification
 
@@ -258,6 +314,17 @@ def which_loss():
 CE_loss_fn = which_loss() # Sets Loss function based on the LOSS_FUNCTION and Binary_Classification variable
 
 def loss_fn(outputs, targets, preds):
+    """
+    Computes loss based on model outputs, targets, and predictions with optional L1 weighting.
+    
+    Args:
+        outputs (torch.Tensor): Model logits.
+        targets (torch.Tensor): Ground truth labels.
+        preds (torch.Tensor): Predicted labels (one-hot).
+    
+    Returns:
+        torch.Tensor: Calculated loss.
+    """
     # return torch.nn.CrossEntropyLoss()(outputs, targets) # BCEWithLogistsLoss() for Softmax, CrossEntropyLoss() for OneHot
     target_indices = torch.argmax(targets, dim=1)  # [batch_size]
 
@@ -277,6 +344,16 @@ def loss_fn(outputs, targets, preds):
         return CE_loss_fn(outputs, target_indices).mean()  
 
 def accuracyTest(outputs, targets):
+    """
+    Calculates accuracy as the proportion of exact matches between outputs and targets.
+    
+    Args:
+        outputs (torch.Tensor): Predicted labels (one-hot).
+        targets (torch.Tensor): Ground truth labels (one-hot).
+    
+    Returns:
+        float: Accuracy score.
+    """
     outputs = outputs.to(device, dtype=torch.int)
     targets = targets.to(device, dtype=torch.int)
 
@@ -289,6 +366,16 @@ def accuracyTest(outputs, targets):
     return accuracy
 
 def l1_score(outputs, targets):
+    """
+    Calculates mean L1 distance between predicted and target class indices.
+    
+    Args:
+        outputs (torch.Tensor): Predicted logits.
+        targets (torch.Tensor): Ground truth labels (one-hot).
+    
+    Returns:
+        float: Mean L1 distance.
+    """
     pred_indices = torch.argmax(outputs, dim=1)
     target_indices = torch.argmax(targets, dim=1)
     l1_dists = torch.abs(pred_indices - target_indices).float()
@@ -310,6 +397,12 @@ confusion_matrix_pr_epoch = []
 misclassified_samples = []
 
 def train(epoch):
+    """
+    Runs one epoch of training.
+    
+    Args:
+        epoch (int): Current epoch number.
+    """
     model.train()
     total_loss = 0  # Track total loss for the epoch
     train_accuracies = []
@@ -360,6 +453,12 @@ def train(epoch):
 
 
 def validation(epoch):
+    """
+    Runs one epoch of validation, calculates confusion matrix, accuracy, and L1 scores.
+    
+    Args:
+        epoch (int): Current epoch number.
+    """
     model.eval()
     confusion_matrix = np.zeros((len(unique_labels), len(unique_labels)))
 
